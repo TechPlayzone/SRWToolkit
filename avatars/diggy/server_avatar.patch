@@ -1,0 +1,106 @@
+--- a/server.py
++++ b/server.py
+@@ -24,6 +24,8 @@
+ import paramiko
+ from flask import Flask, jsonify, request, send_from_directory
+ from pidog_actions import ACTIONS, speak_command, BOOTSTRAP_IMPORTS, SENSOR_READ
++from diggy_avatar_bridge import avatar_bp, publish as avatar_publish, stage_audio, listener_count as avatar_listeners
++from diggy_voice import synthesize_on_diggy, wav_seconds
+ 
+ try:
+     from dotenv import load_dotenv
+@@ -66,6 +68,9 @@
+ AUTO_START_OLLAMA = True
+ AUTO_START_CAMERA = True
+ 
++# Where Diggy's voice comes out while the avatar page is open: "tablet", "robot" or "both".
++AVATAR_VOICE = os.environ.get("AVATAR_VOICE", "tablet")
++
+ _subprocesses = []
+ 
+ def cleanup_subprocesses():
+@@ -375,16 +380,48 @@
+ threading.Thread(target=ensure_whisper_running, daemon=True).start()
+ 
+ 
++LED_HEX = {"white": "#ffffff", "red": "#ff3b30", "yellow": "#ffd60a", "green": "#34c759",
++           "blue": "#0a84ff", "cyan": "#38d5e8", "magenta": "#ff2dd4", "pink": "#ff7ad9"}
++
++def _led_hex(color):
++    """Turn the dashboard's LED color (name, '#hex' or [r, g, b]) into '#rrggbb' for the avatar."""
++    if isinstance(color, (list, tuple)) and len(color) == 3:
++        return "#%02x%02x%02x" % tuple(max(0, min(255, int(c))) for c in color)
++    if isinstance(color, str):
++        c = color.strip().lower()
++        if re.fullmatch(r"#[0-9a-f]{6}", c):
++            return c
++        return LED_HEX.get(c)
++    return None
++
+ def diggy_speak(text: str):
+     if not text:
+         return
+     text = text[:300]
++    if AVATAR_VOICE != "robot" and avatar_listeners() > 0:
++        try:
++            wav = synthesize_on_diggy(text, shell.host_ip, PIDOG_USER, PIDOG_PASS)
++            seconds = wav_seconds(wav)
++            avatar_publish({"type": "speak", "text": text, "audio_url": stage_audio(wav),
++                            "duration_ms": int(seconds * 1000)})
++            shell.run("dog.rgb_strip.set_mode(style='speak', color='cyan', bps=2)")
++            if AVATAR_VOICE == "both":
++                shell.run(speak_command(text), is_user_action=True)
++            else:
++                time.sleep(seconds + 0.3)
++            shell.run("dog.rgb_strip.close()")
++            return
++        except Exception as e:
++            print(f"[avatar] tablet voice failed ({e}); using Diggy's speaker")
++    avatar_publish({"type": "speak", "text": text})
+     shell.run(speak_command(text), is_user_action=True)
+ 
+ def diggy_show_thinking():
++    avatar_publish({"type": "state", "state": "thinking"})
+     shell.run("dog.rgb_strip.set_mode(style='listen', color='cyan', bps=1.5)")
+ 
+ def diggy_clear_leds():
++    avatar_publish({"type": "state", "state": "idle"})
+     shell.run("dog.rgb_strip.close()")
+ 
+ 
+@@ -529,6 +566,7 @@
+ 
+ # ---- Flask app -------------------------------------------------------
+ app = Flask(__name__, static_folder="static")
++app.register_blueprint(avatar_bp)
+ 
+ @app.route("/")
+ def index():
+@@ -541,6 +579,7 @@
+     color = data.get("color", "cyan")
+     bps   = float(data.get("bps", 1.0))
+     off   = data.get("off", False)
++    avatar_publish({"type": "led", "color": None if off else _led_hex(color)})
+     if off:
+         print("[diggy] LEDs off")
+         shell.run("dog.rgb_strip.close()")
+@@ -634,6 +673,7 @@
+ def listen():
+     data    = request.get_json(force=True)
+     seconds = int(data.get("seconds", 5))
++    avatar_publish({"type": "state", "state": "listening"})
+     try:
+         r = requests.get(
+             f"http://{shell.host_ip}:5003/listen/{seconds}",
+@@ -642,9 +682,11 @@
+         r.raise_for_status()
+         transcript = r.json().get("text", "").strip()
+     except Exception as e:
++        avatar_publish({"type": "state", "state": "idle"})
+         return jsonify({"error": str(e)}), 500
+ 
+     if not transcript:
++        avatar_publish({"type": "state", "state": "idle"})
+         return jsonify({"error": "nothing heard"}), 400
+ 
+     print(f"[diggy] Thinking: \"{transcript[:60]}\"")

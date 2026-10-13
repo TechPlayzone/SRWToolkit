@@ -8,48 +8,64 @@ This folder is separate from the SRWToolkit code. SRWToolkit is MIT licensed (se
 
 ## Try it without the robot
 
-Open `index.html` in a browser, tap **Tap to wake Diggy**, then use the buttons at the top left to switch states, pick an LED color, or make Diggy say something. Press `d` to hide those controls and `f` for full screen.
+Open `diggy_avatar.html` in a browser, tap **Tap to wake Diggy**, then use the buttons at the top left to switch states, pick an LED color, or make Diggy say something. Press `d` to hide those controls and `f` for full screen.
 
-## Connect it to the dashboard
+## Connect it to Diggy's dashboard (voice plays on the tablet)
 
-1. Copy `diggy_avatar_bridge.py` next to the dashboard's Flask app.
-2. Register it:
+This is set up for the dashboard in `TechPlayzone/PiDog` (`server.py`, Flask on port 5001), where Piper runs on Diggy's Raspberry Pi. The laptop asks Diggy to speak each reply into a WAV file, copies it over, and serves it to the tablet. The tablet plays it, and the mouth follows the real audio.
 
-   ```python
-   from diggy_avatar_bridge import avatar_bp, publish
-   app.register_blueprint(avatar_bp)
-   ```
+1. Copy `diggy_avatar.html`, `diggy_avatar_bridge.py`, and `diggy_voice.py` into the same folder as `server.py`.
+2. Apply the patch from that folder: `patch -p1 < server_avatar.patch`. It was made against the PiDog repo's `server.py` from June 9, 2026 (commit `bc4aa84`). If your `server.py` has changed since then and the patch doesn't apply, make the same changes by hand; they are small and listed below.
+3. Start the dashboard as usual. On the tablet, on the same network, open `http://<laptop-ip>:5001/avatar/` and tap **Tap to wake Diggy** once. Windows may ask to let Python through the firewall the first time.
 
-3. Open `http://<laptop-ip>:<flask-port>/avatar/` on the tablet, then tap once to wake Diggy.
-4. Call `publish(...)` from the dashboard:
+What the patch changes in `server.py`:
 
-   | When | Event |
-   |---|---|
-   | Microphone is recording | `{"type": "state", "state": "listening"}` |
-   | Waiting for the LLM | `{"type": "state", "state": "thinking"}` |
-   | Diggy speaks | `{"type": "speak", "text": reply}` |
-   | Robot LED color changes | `{"type": "led", "color": "#ff8800"}` |
-   | Interrupt | `{"type": "stop"}` |
-   | Subtitles on or off | `{"type": "subtitles", "enabled": false}` |
+| Where | Change |
+|---|---|
+| Imports and settings | Loads the bridge and `diggy_voice`, adds `AVATAR_VOICE` |
+| `diggy_speak` | With the avatar page open, Diggy makes the voice file, the tablet plays it, and the chest strip shows the speaking light for as long as the audio lasts |
+| `diggy_show_thinking`, `diggy_clear_leds` | Tell the avatar to think or go idle |
+| `/api/listen` | Tells the avatar Diggy is listening |
+| `/api/led` | Passes the LED color to the avatar |
+| Flask app | Registers the bridge |
 
-   After a `speak` event finishes, the face returns to idle by itself.
+Settings, as environment variables or in `.env`:
 
-To test the link before touching the dashboard, run `python diggy_avatar_bridge.py`, open `http://localhost:5051/avatar/`, and send:
+- `AVATAR_VOICE=tablet` (default) plays the voice on the tablet only. `robot` plays it on Diggy's speaker only, and `both` plays it in both places.
+- `DIGGY_PIPER_MODEL` is the full path to the voice model on Diggy. The default is `/home/<user>/.piper_models/en_US-amy-low.onnx`.
+- `DIGGY_PIPER` is the full path to the `piper` program on Diggy, only needed if it isn't found automatically.
+
+If the avatar page isn't open, or making the voice file fails, Diggy speaks on its own speaker as before, so it never goes silent.
+
+## Events
+
+Any dashboard can drive the avatar by calling `publish(...)` from `diggy_avatar_bridge.py`:
+
+| When | Event |
+|---|---|
+| Microphone is recording | `{"type": "state", "state": "listening"}` |
+| Waiting for the LLM | `{"type": "state", "state": "thinking"}` |
+| Diggy speaks | `{"type": "speak", "text": reply}` |
+| Robot LED color changes | `{"type": "led", "color": "#ff8800"}` |
+| Interrupt | `{"type": "stop"}` |
+| Subtitles on or off | `{"type": "subtitles", "enabled": false}` |
+
+After a `speak` event finishes, the face returns to idle by itself.
+
+A `speak` event can also carry `"audio_url"` (use `stage_audio("reply.wav")` to get one) so the tablet plays real audio, and `"duration_ms"` so the mouth and subtitles stay in step when there is no audio file.
+
+To test the link without the dashboard, run `python diggy_avatar_bridge.py`, open `http://localhost:5051/avatar/`, and send:
 
 ```
 curl -X POST -H "Content-Type: application/json" -d '{"text":"Woof! I am Diggy."}' http://localhost:5051/avatar/say
 ```
 
-## Where the voice plays
-
-- **Voice plays on the robot's speaker (default).** Send `speak` with just `text`. The mouth follows a timing pattern built from the words. Add `"duration_ms"` if you know how long the audio lasts, so the mouth and subtitles stay in step.
-- **Voice plays in the tablet's browser.** Send `speak` with `"audio_url"` (for example a `/tts/latest.wav` route on the dashboard). The mouth then follows the real audio, and subtitles follow its progress. Browsers only allow sound after a tap, which is why the page starts with the wake button.
-
 ## Options
 
 - `?server=http://<ip>:<port>` when the page is opened from somewhere other than the dashboard.
 - `?skin=puppy` shows the cartoon dog instead of the robot.
-- `?nogate=1` skips the wake button, for setups where the robot makes the sound.
+- `?nogate=1` skips the wake button. Don't use it when the voice plays on the tablet, because browsers block sound until someone taps.
+- If the browser blocks sound, the page asks for a tap on the screen.
 - Reduced-motion settings stop the idle glancing and ear twitches.
 
 The bridge has no login. Run it on a trusted network only.

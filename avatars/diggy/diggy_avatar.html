@@ -366,13 +366,24 @@
     return Math.max(900, words * 360 + stops * 200);
   }
 
+  // Browsers only allow sound after a tap. If a voice arrives and sound is blocked, say so on screen.
+  function needSound() {
+    showStatus('Tap the screen to turn on Diggy’s voice');
+    document.addEventListener('pointerdown', () => {
+      if (audioCtx) audioCtx.resume();
+      showStatus('');
+    }, { once: true });
+  }
+
   function speak(evt) {
     const text = String(evt.text || '').trim();
     if (!text) return;
     stopSpeech(true);
     setState('speaking', evt.led);
     const s = { text, sentences: sentencesOf(text), started: performance.now(), duration: Number(evt.duration_ms) || estimateMs(text), audio: null, segs: null, shown: -1 };
+    if (evt.audio_url && !audioCtx) needSound();
     if (evt.audio_url && audioCtx) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
       try {
         const a = new Audio(new URL(evt.audio_url, server || location.href).href);
         a.crossOrigin = 'anonymous';
@@ -382,7 +393,7 @@
         const src = audioCtx.createMediaElementSource(a);
         src.connect(analyser);
         s.audio = a;
-        a.play().catch(() => { s.audio = null; s.started = performance.now(); s.segs = buildSegments(text, s.duration); });
+        a.play().catch(() => { s.audio = null; s.started = performance.now(); s.segs = buildSegments(text, s.duration); needSound(); });
       } catch (e) { s.audio = null; }
     }
     if (!s.audio) s.segs = buildSegments(text, s.duration);

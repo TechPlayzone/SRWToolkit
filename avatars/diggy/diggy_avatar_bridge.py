@@ -11,17 +11,28 @@ dashboard listens, thinks, speaks, or changes the robot's LED color:
     publish({"type": "speak", "text": reply_text})
     publish({"type": "led", "color": "#ff8800"})
 
+To play the voice in the tablet's browser, save the speech as a WAV file and pass its URL:
+
+    publish({"type": "speak", "text": reply_text, "audio_url": stage_audio("reply.wav")})
+
 Open http://<dashboard-ip>:<port>/avatar/ on the tablet. Run this file directly to try the
 avatar without the dashboard: python diggy_avatar_bridge.py
 """
 import json
 import queue
+import re
+import shutil
+import tempfile
 import threading
+import uuid
 from pathlib import Path
 
 from flask import Blueprint, Response, jsonify, request, send_from_directory
 
 _HERE = Path(__file__).resolve().parent
+AUDIO_DIR = Path(tempfile.gettempdir()) / "diggy_avatar_audio"
+_AUDIO_NAME = re.compile(r"^[0-9a-f]{32}\.wav$")
+_KEEP_AUDIO = 20
 _STATES = {"idle", "listening", "thinking"}
 _REPLAYED = {"state", "led", "subtitles"}  # a tablet that joins late gets the latest of each
 
@@ -30,6 +41,29 @@ avatar_bp = Blueprint("diggy_avatar", __name__, url_prefix="/avatar")
 _subscribers = set()
 _latest = {}
 _lock = threading.Lock()
+
+
+def listener_count() -> int:
+    """How many avatar pages are connected right now."""
+    with _lock:
+        return len(_subscribers)
+
+
+def stage_audio(wav_path) -> str:
+    """Copy a WAV file where the tablet can fetch it and return its URL for a speak event.
+
+    Only the newest few files are kept, so the folder never grows.
+    """
+    AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    name = f"{uuid.uuid4().hex}.wav"
+    shutil.copyfile(wav_path, AUDIO_DIR / name)
+    old = sorted(AUDIO_DIR.glob("*.wav"), key=lambda p: p.stat().st_mtime, reverse=True)[_KEEP_AUDIO:]
+    for p in old:
+        try:
+            p.unlink()
+        except OSError:
+            pass
+    return f"/avatar/audio/{name}"
 
 
 def publish(event: dict) -> int:
@@ -50,7 +84,16 @@ def publish(event: dict) -> int:
 @avatar_bp.get("/")
 @avatar_bp.get("/index.html")
 def page():
-    return send_from_directory(_HERE, "index.html")
+    return send_from_directory(_HERE, "diggy_avatar.html")
+
+
+@avatar_bp.get("/audio/<name>")
+def audio(name):
+    if not _AUDIO_NAME.match(name):
+        return jsonify(error="Not found."), 404
+    resp = send_from_directory(AUDIO_DIR, name, mimetype="audio/wav")
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 @avatar_bp.get("/events")
