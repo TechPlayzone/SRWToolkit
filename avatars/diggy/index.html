@@ -26,6 +26,7 @@
   .stage svg { height: 100%; width: 100%; max-height: 100%; }
 
   .led-fill { fill: rgb(var(--led-rgb)); }
+  .led-stroke { stroke: rgb(var(--led-rgb)); }
 
   .subtitles {
     min-height: 3.9em;
@@ -89,8 +90,12 @@
       <clipPath id="eyeClipR"><circle cx="490" cy="270" r="49"/></clipPath>
       <clipPath id="mouthClip"><path id="mouthClipPath" d=""/></clipPath>
       <filter id="blur" x="-30%" y="-200%" width="160%" height="500%"><feGaussianBlur stdDeviation="11"/></filter>
+      <linearGradient id="silver" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#e6eaf1"/><stop offset="1" stop-color="#b3bbc8"/>
+      </linearGradient>
     </defs>
 
+    <g id="skinPuppy" display="none">
     <!-- neck and collar -->
     <rect x="330" y="490" width="140" height="80" rx="34" fill="#c98f52"/>
     <rect x="245" y="548" width="310" height="44" rx="22" fill="#141a38"/>
@@ -135,6 +140,63 @@
     <path d="M400 394 L400 418" stroke="#2a1018" stroke-width="6" stroke-linecap="round"/>
     <path id="mouth" d="" fill="#3a1620" stroke="#2a1018" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/>
     <g clip-path="url(#mouthClip)"><ellipse id="tongue" cx="400" cy="440" rx="40" ry="4" fill="#e5667a"/></g>
+    </g>
+
+    <g id="skinRobot">
+      <!-- neck and chest light -->
+      <rect x="340" y="490" width="120" height="80" rx="26" fill="#6e7788"/>
+      <rect x="225" y="548" width="350" height="48" rx="16" fill="#141a38"/>
+      <rect id="rGlow" class="led-fill" x="238" y="560" width="324" height="24" rx="8" filter="url(#blur)" opacity=".6"/>
+      <g id="rSegs"></g>
+
+      <!-- metal ear flaps sit behind the head -->
+      <path id="rEarL" fill="#8d97a8" stroke="#6e7788" stroke-width="4" stroke-linejoin="round" d="M205 150 L120 175 Q95 250 125 330 L190 300 Q215 230 205 150 Z"/>
+      <path id="rEarR" fill="#8d97a8" stroke="#6e7788" stroke-width="4" stroke-linejoin="round" d="M595 150 L680 175 Q705 250 675 330 L610 300 Q585 230 595 150 Z"/>
+
+      <!-- head -->
+      <rect x="170" y="108" width="460" height="408" rx="76" fill="url(#silver)"/>
+      <rect x="183" y="121" width="434" height="382" rx="64" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="3"/>
+      <circle cx="214" cy="152" r="6" fill="#7d8697"/><circle cx="586" cy="152" r="6" fill="#7d8697"/>
+      <circle cx="214" cy="470" r="6" fill="#7d8697"/><circle cx="586" cy="470" r="6" fill="#7d8697"/>
+
+      <!-- camera -->
+      <circle cx="400" cy="158" r="17" fill="#20243a" stroke="#8a93a3" stroke-width="4"/>
+      <circle cx="400" cy="158" r="7" class="led-fill"/>
+
+      <!-- snout with speaker grille -->
+      <rect x="300" y="380" width="200" height="125" rx="44" fill="#c3cad6" stroke="#9aa3b2" stroke-width="3"/>
+      <rect x="368" y="392" width="64" height="24" rx="12" fill="#20243a"/>
+      <rect x="332" y="430" width="136" height="62" rx="16" fill="#12172e"/>
+      <g id="rBars"></g>
+
+      <!-- brow plates -->
+      <rect id="rBrowL" x="262" y="186" width="96" height="14" rx="7" fill="#8d97a8"/>
+      <rect id="rBrowR" x="442" y="186" width="96" height="14" rx="7" fill="#8d97a8"/>
+
+      <!-- sensor-lens eyes -->
+      <circle cx="310" cy="270" r="62" fill="#2b3050" stroke="#8a93a3" stroke-width="5"/>
+      <circle cx="490" cy="270" r="62" fill="#2b3050" stroke="#8a93a3" stroke-width="5"/>
+      <circle cx="310" cy="270" r="49" fill="#0d1022"/>
+      <circle cx="490" cy="270" r="49" fill="#0d1022"/>
+      <g clip-path="url(#eyeClipL)">
+        <g id="rLookL">
+          <circle class="led-stroke" cx="310" cy="270" r="40" fill="none" stroke-width="3" opacity=".5"/>
+          <circle class="led-fill" cx="310" cy="270" r="30"/>
+          <circle cx="310" cy="270" r="12" fill="#0d1022"/>
+          <circle cx="319" cy="261" r="6" fill="#fff" opacity=".9"/>
+        </g>
+        <rect id="rLidL" x="250" y="-70" width="120" height="120" fill="#2b3050"/>
+      </g>
+      <g clip-path="url(#eyeClipR)">
+        <g id="rLookR">
+          <circle class="led-stroke" cx="490" cy="270" r="40" fill="none" stroke-width="3" opacity=".5"/>
+          <circle class="led-fill" cx="490" cy="270" r="30"/>
+          <circle cx="490" cy="270" r="12" fill="#0d1022"/>
+          <circle cx="499" cy="261" r="6" fill="#fff" opacity=".9"/>
+        </g>
+        <rect id="rLidR" x="430" y="-70" width="120" height="120" fill="#2b3050"/>
+      </g>
+    </g>
   </svg>
 </main>
 
@@ -151,6 +213,7 @@
   <input id="trayLed" type="color" value="#9a8cff" aria-label="LED color">
   <input id="trayText" type="text" value="Woof! I'm Diggy. Ask me anything about robots, and I'll do my best to answer." aria-label="What Diggy says">
   <button type="submit">Speak</button>
+  <button type="button" id="skinBtn">Switch look</button>
 </form>
 
 <script>
@@ -166,6 +229,7 @@
   const server = params.get('server') ||
     ((location.protocol === 'http:' || location.protocol === 'https:') && location.pathname.startsWith('/avatar') ? location.origin : null);
   const demo = !server;
+  let skin = params.get('skin') === 'puppy' ? 'puppy' : 'robot';
 
   // ---- colors: Diggy's eyes, collar and the room glow all follow the robot's LED color ----
   const STATE_LED = { idle: '#9a8cff', listening: '#38d5e8', thinking: '#ffb347', speaking: '#7cf2a2' };
@@ -198,6 +262,67 @@
     mouth: $('mouth'), mouthClip: $('mouthClipPath'), tongue: $('tongue'),
     glow: $('ledGlow'), subtitle: $('subtitle'), status: $('status'),
   };
+
+  // ---- robot look: lens eyes, a speaker-bar mouth, and an 11-segment chest light ----
+  const RB = {
+    earL: $('rEarL'), earR: $('rEarR'), browL: $('rBrowL'), browR: $('rBrowR'),
+    lookL: $('rLookL'), lookR: $('rLookR'), lidL: $('rLidL'), lidR: $('rLidR'),
+    glow: $('rGlow'), bars: $('rBars'), segs: $('rSegs'),
+  };
+  const make = (tag, attrs) => {
+    const n = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    return n;
+  };
+  const bars = [], segs = [];
+  for (let i = 0; i < 9; i++) {
+    const b = make('rect', { class: 'led-fill', x: 335.5 + i * 15, y: 459.5, width: 9, height: 3, rx: 4.5 });
+    RB.bars.appendChild(b); bars.push(b);
+  }
+  for (let i = 0; i < 11; i++) {
+    const s = make('rect', { class: 'led-fill', x: 238 + i * 30, y: 560, width: 24, height: 24, rx: 6, 'fill-opacity': .4 });
+    RB.segs.appendChild(s); segs.push(s);
+  }
+
+  function applySkin(name) {
+    skin = name;
+    $('skinPuppy').setAttribute('display', name === 'puppy' ? 'inline' : 'none');
+    $('skinRobot').setAttribute('display', name === 'robot' ? 'inline' : 'none');
+  }
+  applySkin(skin);
+
+  function applyRobot(now) {
+    RB.earL.setAttribute('transform', `rotate(${cur.earL.toFixed(2)} 215 135)`);
+    RB.earR.setAttribute('transform', `rotate(${cur.earR.toFixed(2)} 585 135)`);
+    RB.browL.setAttribute('transform', `translate(0 ${cur.browL.toFixed(2)})`);
+    RB.browR.setAttribute('transform', `translate(0 ${cur.browR.toFixed(2)})`);
+    const lookT = `translate(${cur.lookX.toFixed(2)} ${cur.lookY.toFixed(2)})`;
+    RB.lookL.setAttribute('transform', lookT);
+    RB.lookR.setAttribute('transform', lookT);
+    const lidY = (cur.lid * 100 - 52 - 120 + 270).toFixed(2);
+    RB.lidL.setAttribute('y', lidY);
+    RB.lidR.setAttribute('y', lidY);
+    RB.glow.setAttribute('opacity', cur.glow.toFixed(3));
+
+    // Speaker bars: a thin line when quiet, jumping with the voice when speaking.
+    const o = clamp(cur.mouth, 0, 1);
+    bars.forEach((b, i) => {
+      const wob = .35 + .65 * Math.abs(Math.sin(now / 85 + i * 1.7));
+      const h = 3 + o * wob * 52;
+      b.setAttribute('height', h.toFixed(1));
+      b.setAttribute('y', (461 - h / 2).toFixed(1));
+    });
+
+    // Chest light: level meter while speaking, scanner while thinking, steady while listening.
+    segs.forEach((s, i) => {
+      let a;
+      if (state === 'speaking') a = Math.abs(i - 5) <= o * 6 ? 1 : .18;
+      else if (state === 'thinking') a = Math.max(.15, 1 - Math.abs(i - (Math.sin(now / 330) + 1) / 2 * 10) / 2.2);
+      else if (state === 'listening') a = .95;
+      else a = .4 + .15 * Math.sin(now / 900 + i * .4);
+      s.setAttribute('fill-opacity', a.toFixed(2));
+    });
+  }
 
   function setState(next, led) {
     state = next;
@@ -379,6 +504,7 @@
     el.mouthClip.setAttribute('d', d);
     el.tongue.setAttribute('cy', (y0 + 11 + 65 * o - 12).toFixed(2));
     el.tongue.setAttribute('ry', (4 + 16 * Math.min(1, o * 1.6)).toFixed(2));
+    if (skin === 'robot') applyRobot(now);
 
     requestAnimationFrame(frame);
   }
@@ -431,6 +557,7 @@
     if (e.target.tagName === 'INPUT') return;
     if (e.key === 'f') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.(); }
     if (e.key === 'd') $('tray').classList.toggle('off');
+    if (e.key === 's') applySkin(skin === 'robot' ? 'puppy' : 'robot');
   });
 
   if (demo) {
@@ -444,6 +571,7 @@
       handle({ type: 'speak', text: $('trayText').value });
     });
     $('trayLed').addEventListener('input', (e) => handle({ type: 'led', color: e.target.value }));
+    $('skinBtn').addEventListener('click', () => applySkin(skin === 'robot' ? 'puppy' : 'robot'));
   } else {
     connect();
   }

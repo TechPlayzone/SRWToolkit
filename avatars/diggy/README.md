@@ -1,6 +1,8 @@
 # Diggy avatar
 
-An animated on-screen face for Diggy, the robot dog. It blinks, perks its ears when listening, looks up when thinking, moves its mouth while speaking, and shows subtitles one sentence at a time. Diggy's eyes, collar light, and the glow behind the face all follow the robot's LED color.
+An animated on-screen face for Diggy, the robot dog. It blinks, perks its ears when listening, looks up when thinking, moves its mouth while speaking, and shows subtitles one sentence at a time. Diggy's eyes, chest light, and the glow behind the face all follow the robot's LED color.
+
+There are two looks. The default is a robot: a metal head with round sensor-lens eyes, a speaker-bar mouth, and an 11-segment chest light that works as a level meter while Diggy speaks, a scanner while it thinks, and a steady glow while it listens. Add `?skin=puppy` for a friendlier cartoon dog. Press `s` to switch between them.
 
 This folder is separate from the SRWToolkit code. SRWToolkit is MIT licensed (see the repo's `LICENSE`); keep that notice if you reuse its code.
 
@@ -46,6 +48,7 @@ curl -X POST -H "Content-Type: application/json" -d '{"text":"Woof! I am Diggy."
 ## Options
 
 - `?server=http://<ip>:<port>` when the page is opened from somewhere other than the dashboard.
+- `?skin=puppy` shows the cartoon dog instead of the robot.
 - `?nogate=1` skips the wake button, for setups where the robot makes the sound.
 - Reduced-motion settings stop the idle glancing and ear twitches.
 
