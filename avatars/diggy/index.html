@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Diggy</title>
+<style>
+  :root {
+    --ink: #1b2340;
+    --cream: #fff4e0;
+    --led-rgb: 154, 140, 255;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background:
+      radial-gradient(62% 56% at 50% 56%, rgba(var(--led-rgb), .24), rgba(var(--led-rgb), 0) 72%),
+      var(--ink);
+    color: var(--cream);
+    font-family: "Atkinson Hyperlegible", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    overflow: hidden;
+  }
+  .stage { display: grid; place-items: center; min-height: 0; padding: 2vh 2vw 0; }
+  .stage svg { height: 100%; width: 100%; max-height: 100%; }
+
+  .led-fill { fill: rgb(var(--led-rgb)); }
+
+  .subtitles {
+    min-height: 3.9em;
+    padding: 0 6vw 3vh;
+    text-align: center;
+    font-size: clamp(20px, 2.8vw, 36px);
+    line-height: 1.3;
+    display: flex; align-items: flex-start; justify-content: center;
+  }
+  .subtitles p {
+    margin: 0; max-width: 34ch;
+    transition: opacity .35s ease;
+  }
+  .subtitles p.hidden { opacity: 0; }
+  body.no-subtitles .subtitles { visibility: hidden; }
+
+  .status {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+    font-size: 15px; color: rgba(255, 244, 224, .7);
+    opacity: 0; transition: opacity .3s ease; pointer-events: none;
+  }
+  .status.on { opacity: 1; }
+
+  .gate {
+    position: fixed; inset: 0; display: grid; place-items: center;
+    background: rgba(27, 35, 64, .72); backdrop-filter: blur(4px);
+    z-index: 5;
+  }
+  .gate.gone { display: none; }
+  .gate button {
+    font: inherit; font-size: clamp(24px, 4vw, 40px);
+    padding: .6em 1.4em; border-radius: 999px; border: 0;
+    background: var(--cream); color: var(--ink); cursor: pointer;
+  }
+
+  .tray {
+    position: fixed; top: 10px; left: 10px; z-index: 4;
+    display: flex; flex-wrap: wrap; gap: 6px; max-width: min(92vw, 560px);
+    padding: 8px; border-radius: 12px; background: rgba(10, 14, 32, .55);
+    font-size: 15px;
+  }
+  .tray.off { display: none; }
+  .tray button, .tray input {
+    font: inherit; color: var(--cream);
+    background: rgba(255, 244, 224, .12); border: 1px solid rgba(255, 244, 224, .28);
+    border-radius: 8px; padding: 6px 10px;
+  }
+  .tray button { cursor: pointer; }
+  .tray input[type="text"] { flex: 1 1 220px; min-width: 0; }
+  .tray input[type="color"] { padding: 2px; width: 44px; height: 34px; }
+
+  :focus-visible { outline: 3px solid #ffd479; outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<main class="stage">
+  <svg viewBox="0 0 800 640" role="img" aria-label="Diggy the robot dog's face">
+    <defs>
+      <clipPath id="eyeClipL"><circle cx="310" cy="270" r="49"/></clipPath>
+      <clipPath id="eyeClipR"><circle cx="490" cy="270" r="49"/></clipPath>
+      <clipPath id="mouthClip"><path id="mouthClipPath" d=""/></clipPath>
+      <filter id="blur" x="-30%" y="-200%" width="160%" height="500%"><feGaussianBlur stdDeviation="11"/></filter>
+    </defs>
+
+    <!-- neck and collar -->
+    <rect x="330" y="490" width="140" height="80" rx="34" fill="#c98f52"/>
+    <rect x="245" y="548" width="310" height="44" rx="22" fill="#141a38"/>
+    <rect id="ledGlow" class="led-fill" x="262" y="561" width="276" height="18" rx="9" filter="url(#blur)" opacity=".6"/>
+    <rect id="ledBar" class="led-fill" x="262" y="561" width="276" height="18" rx="9"/>
+
+    <!-- ears sit behind the head -->
+    <path id="earL" fill="#5a3a24" d="M215 130 C120 120 70 200 85 330 C95 400 150 410 185 360 C215 315 230 220 215 130 Z"/>
+    <path id="earR" fill="#5a3a24" d="M585 130 C680 120 730 200 715 330 C705 400 650 410 615 360 C585 315 570 220 585 130 Z"/>
+
+    <!-- head and muzzle -->
+    <path fill="#e9b87a" d="M400 90 C560 90 640 190 640 320 C640 450 550 530 400 530 C250 530 160 450 160 320 C160 190 240 90 400 90 Z"/>
+    <ellipse cx="400" cy="408" rx="140" ry="102" fill="#f6d9ae"/>
+
+    <!-- brows -->
+    <path id="browL" d="M268 205 Q310 188 352 205" fill="none" stroke="#5a3a24" stroke-width="13" stroke-linecap="round"/>
+    <path id="browR" d="M448 205 Q490 188 532 205" fill="none" stroke="#5a3a24" stroke-width="13" stroke-linecap="round"/>
+
+    <!-- eyes -->
+    <circle cx="310" cy="270" r="48" fill="#fff7ea"/>
+    <circle cx="490" cy="270" r="48" fill="#fff7ea"/>
+    <g clip-path="url(#eyeClipL)">
+      <g id="lookL">
+        <circle class="led-fill" cx="310" cy="270" r="31"/>
+        <circle cx="310" cy="270" r="15" fill="#14161f"/>
+        <circle cx="319" cy="260" r="7" fill="#fff"/>
+      </g>
+      <rect id="lidL" x="250" y="-70" width="120" height="120" fill="#e9b87a"/>
+    </g>
+    <g clip-path="url(#eyeClipR)">
+      <g id="lookR">
+        <circle class="led-fill" cx="490" cy="270" r="31"/>
+        <circle cx="490" cy="270" r="15" fill="#14161f"/>
+        <circle cx="499" cy="260" r="7" fill="#fff"/>
+      </g>
+      <rect id="lidR" x="430" y="-70" width="120" height="120" fill="#e9b87a"/>
+    </g>
+
+    <!-- nose and mouth -->
+    <path d="M355 345 Q400 318 445 345 Q440 387 400 394 Q360 387 355 345 Z" fill="#20212e"/>
+    <ellipse cx="383" cy="343" rx="16" ry="6" fill="#fff" opacity=".22"/>
+    <path d="M400 394 L400 418" stroke="#2a1018" stroke-width="6" stroke-linecap="round"/>
+    <path id="mouth" d="" fill="#3a1620" stroke="#2a1018" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/>
+    <g clip-path="url(#mouthClip)"><ellipse id="tongue" cx="400" cy="440" rx="40" ry="4" fill="#e5667a"/></g>
+  </svg>
+</main>
+
+<section class="subtitles" aria-live="polite"><p id="subtitle" class="hidden"></p></section>
+
+<div id="status" class="status" role="status"></div>
+
+<div id="gate" class="gate"><button id="gateBtn" type="button">Tap to wake Diggy</button></div>
+
+<form id="tray" class="tray off" autocomplete="off">
+  <button type="button" data-state="idle">Idle</button>
+  <button type="button" data-state="listening">Listening</button>
+  <button type="button" data-state="thinking">Thinking</button>
+  <input id="trayLed" type="color" value="#9a8cff" aria-label="LED color">
+  <input id="trayText" type="text" value="Woof! I'm Diggy. Ask me anything about robots, and I'll do my best to answer." aria-label="What Diggy says">
+  <button type="submit">Speak</button>
+</form>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+  // Where events come from. Served by the Flask bridge: same origin. Opened as a file or from
+  // anywhere else: pass ?server=http://laptop-ip:5001. With neither, the page runs in demo mode.
+  const server = params.get('server') ||
+    ((location.protocol === 'http:' || location.protocol === 'https:') && location.pathname.startsWith('/avatar') ? location.origin : null);
+  const demo = !server;
+
+  // ---- colors: Diggy's eyes, collar and the room glow all follow the robot's LED color ----
+  const STATE_LED = { idle: '#9a8cff', listening: '#38d5e8', thinking: '#ffb347', speaking: '#7cf2a2' };
+  const hexToRgb = (h) => {
+    const m = /^#?([0-9a-f]{6})$/i.exec(h || '');
+    if (!m) return null;
+    const n = parseInt(m[1], 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  let ledTarget = hexToRgb(STATE_LED.idle);
+  let ledCur = ledTarget.slice();
+  let ledOverride = null;
+
+  // ---- poses: each state is a set of target values the face eases toward ----
+  const POSES = {
+    idle:      { earL: 0,  earR: 0,   browL: 0,   browR: 0, glow: .55 },
+    listening: { earL: 16, earR: -16, browL: -10, browR: -10, glow: .95 },
+    thinking:  { earL: -8, earR: -20, browL: -17, browR: 2, glow: .8 },
+    speaking:  { earL: 3,  earR: -3,  browL: 0,   browR: 0, glow: .8 },
+  };
+  let state = 'idle';
+  const cur = { earL: 0, earR: 0, browL: 0, browR: 0, lookX: 0, lookY: 0, lid: 0, mouth: 0, glow: .55 };
+  const aim = { lookX: 0, lookY: 0 };
+  let kick = 0;      // short ear twitch
+  let blinkAt = 0;   // timestamp of the current blink start
+
+  const el = {
+    earL: $('earL'), earR: $('earR'), browL: $('browL'), browR: $('browR'),
+    lookL: $('lookL'), lookR: $('lookR'), lidL: $('lidL'), lidR: $('lidR'),
+    mouth: $('mouth'), mouthClip: $('mouthClipPath'), tongue: $('tongue'),
+    glow: $('ledGlow'), subtitle: $('subtitle'), status: $('status'),
+  };
+
+  function setState(next, led) {
+    state = next;
+    ledOverride = led ? hexToRgb(led) : ledOverride;
+    if (next === 'idle' && !led) ledOverride = null;
+    ledTarget = ledOverride || hexToRgb(STATE_LED[next]);
+    if (next === 'thinking') { aim.lookX = -11; aim.lookY = -10; }
+    else if (next === 'listening') { aim.lookX = 0; aim.lookY = 0; }
+  }
+
+  // ---- speech: either browser audio (analysed for mouth movement) or a timed script ----
+  let speech = null;          // { text, sentences, started, duration, audio, segs }
+  let audioCtx = null;
+  let analyser = null;
+  const audioBuf = new Uint8Array(1024);
+  let endTimer = 0;
+
+  function sentencesOf(text) {
+    const parts = text.match(/[^.!?]+[.!?]*\s*/g) || [text];
+    return parts.map((s) => s.trim()).filter(Boolean);
+  }
+
+  function buildSegments(text, totalMs) {
+    // One mouth pulse per word, with longer closed pauses after punctuation.
+    const words = text.match(/\S+/g) || [];
+    const weights = words.map((w) => Math.max(2, w.replace(/[^\w']/g, '').length) + (/[.,;:!?]$/.test(w) ? 3 : 0));
+    const sum = weights.reduce((a, b) => a + b, 0) || 1;
+    let t = 0;
+    return words.map((w, i) => {
+      const dur = totalMs * (weights[i] / sum);
+      const pause = /[.!?]$/.test(w) ? .45 : /[,;:]$/.test(w) ? .3 : .12;
+      const seg = { s: t, e: t + dur * (1 - pause), amp: .55 + ((w.length * 37 + i * 13) % 45) / 100 };
+      t += dur;
+      return seg;
+    });
+  }
+
+  function estimateMs(text) {
+    const words = (text.match(/\S+/g) || []).length;
+    const stops = (text.match(/[.!?,;:]/g) || []).length;
+    return Math.max(900, words * 360 + stops * 200);
+  }
+
+  function speak(evt) {
+    const text = String(evt.text || '').trim();
+    if (!text) return;
+    stopSpeech(true);
+    setState('speaking', evt.led);
+    const s = { text, sentences: sentencesOf(text), started: performance.now(), duration: Number(evt.duration_ms) || estimateMs(text), audio: null, segs: null, shown: -1 };
+    if (evt.audio_url && audioCtx) {
+      try {
+        const a = new Audio(new URL(evt.audio_url, server || location.href).href);
+        a.crossOrigin = 'anonymous';
+        a.addEventListener('loadedmetadata', () => { if (isFinite(a.duration)) s.duration = a.duration * 1000; });
+        a.addEventListener('ended', () => finishSpeech(s));
+        a.addEventListener('error', () => { s.audio = null; s.started = performance.now(); s.segs = buildSegments(text, s.duration); });
+        const src = audioCtx.createMediaElementSource(a);
+        src.connect(analyser);
+        s.audio = a;
+        a.play().catch(() => { s.audio = null; s.started = performance.now(); s.segs = buildSegments(text, s.duration); });
+      } catch (e) { s.audio = null; }
+    }
+    if (!s.audio) s.segs = buildSegments(text, s.duration);
+    speech = s;
+  }
+
+  function finishSpeech(s) {
+    if (speech !== s) return;
+    speech = null;
+    cur.mouth = 0;
+    setState('idle');
+    clearTimeout(endTimer);
+    endTimer = setTimeout(() => el.subtitle.classList.add('hidden'), 1800);
+  }
+
+  function stopSpeech(silent) {
+    if (speech && speech.audio) { try { speech.audio.pause(); } catch (e) {} }
+    speech = null;
+    clearTimeout(endTimer);
+    if (!silent) { setState('idle'); el.subtitle.classList.add('hidden'); }
+  }
+
+  function speechFrame(now) {
+    const s = speech;
+    let progress, open = 0;
+    if (s.audio) {
+      const d = s.audio.duration;
+      progress = isFinite(d) && d > 0 ? s.audio.currentTime / d : 0;
+      analyser.getByteTimeDomainData(audioBuf);
+      let sum = 0;
+      for (let i = 0; i < audioBuf.length; i++) { const v = (audioBuf[i] - 128) / 128; sum += v * v; }
+      open = clamp(Math.sqrt(sum / audioBuf.length) * 5, 0, 1);
+    } else {
+      const t = now - s.started;
+      progress = t / s.duration;
+      for (const g of s.segs) {
+        if (t >= g.s && t < g.e) { open = g.amp * Math.pow(Math.sin(Math.PI * (t - g.s) / (g.e - g.s)), .8); break; }
+      }
+      if (progress >= 1) { finishSpeech(s); return 0; }
+    }
+    // Show one sentence at a time, timed by how far through the speech we are.
+    const total = s.sentences.reduce((a, x) => a + x.length, 0);
+    let acc = 0, idx = s.sentences.length - 1;
+    for (let i = 0; i < s.sentences.length; i++) {
+      acc += s.sentences[i].length;
+      if (progress * total < acc) { idx = i; break; }
+    }
+    if (idx !== s.shown) {
+      s.shown = idx;
+      el.subtitle.textContent = s.sentences[idx];
+      el.subtitle.classList.remove('hidden');
+    }
+    return open;
+  }
+
+  // ---- idle life: blinking, glancing around, an occasional ear twitch ----
+  function scheduleLife() {
+    setTimeout(() => { blinkAt = performance.now(); scheduleLife(); }, 2200 + Math.random() * 3800);
+  }
+  function glanceLoop() {
+    setTimeout(() => {
+      if (state === 'idle' && !reduceMotion) {
+        aim.lookX = (Math.random() - .5) * 18;
+        aim.lookY = (Math.random() - .5) * 10;
+        if (Math.random() < .3) kick = 8;
+      }
+      glanceLoop();
+    }, 2500 + Math.random() * 3500);
+  }
+
+  // ---- render loop ----
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(.05, (now - last) / 1000);
+    last = now;
+    const ease = 1 - Math.exp(-dt * 9);
+    const pose = POSES[state];
+
+    const open = speech ? speechFrame(now) : 0;
+    cur.mouth += (open - cur.mouth) * (1 - Math.exp(-dt * 26));
+
+    cur.earL += ((pose.earL + cur.mouth * 5 + kick) - cur.earL) * ease;
+    cur.earR += ((pose.earR - cur.mouth * 5 - kick) - cur.earR) * ease;
+    kick *= Math.exp(-dt * 5);
+    cur.browL += ((pose.browL - cur.mouth * 4) - cur.browL) * ease;
+    cur.browR += ((pose.browR - cur.mouth * 4) - cur.browR) * ease;
+    cur.lookX += (aim.lookX - cur.lookX) * ease;
+    cur.lookY += (aim.lookY - cur.lookY) * ease;
+
+    const bt = (now - blinkAt) / 160;
+    cur.lid = bt >= 0 && bt <= 1 ? Math.sin(Math.PI * bt) : 0;
+
+    let glow = pose.glow;
+    if (state === 'thinking') glow = .55 + .4 * (.5 + .5 * Math.sin(now / 260));
+    else if (state === 'idle') glow = .5 + .15 * Math.sin(now / 900);
+    else if (state === 'speaking') glow = .6 + .4 * cur.mouth;
+    cur.glow += (glow - cur.glow) * ease;
+
+    for (let i = 0; i < 3; i++) ledCur[i] += (ledTarget[i] - ledCur[i]) * ease;
+    document.documentElement.style.setProperty('--led-rgb', ledCur.map(Math.round).join(', '));
+
+    // apply to the drawing
+    el.earL.setAttribute('transform', `rotate(${cur.earL.toFixed(2)} 215 135)`);
+    el.earR.setAttribute('transform', `rotate(${cur.earR.toFixed(2)} 585 135)`);
+    el.browL.setAttribute('transform', `translate(0 ${cur.browL.toFixed(2)})`);
+    el.browR.setAttribute('transform', `translate(0 ${cur.browR.toFixed(2)})`);
+    const lookT = `translate(${cur.lookX.toFixed(2)} ${cur.lookY.toFixed(2)})`;
+    el.lookL.setAttribute('transform', lookT);
+    el.lookR.setAttribute('transform', lookT);
+    const lidY = (cur.lid * 100 - 52 - 120 + 270).toFixed(2);
+    el.lidL.setAttribute('y', lidY);
+    el.lidR.setAttribute('y', lidY);
+    el.glow.setAttribute('opacity', cur.glow.toFixed(3));
+
+    const o = clamp(cur.mouth, 0, 1);
+    const y0 = 418, L = 336, R = 464, up = y0 + 22, lo = y0 + 22 + 130 * o;
+    const d = `M${L} ${y0} Q400 ${up} ${R} ${y0} Q400 ${lo} ${L} ${y0} Z`;
+    el.mouth.setAttribute('d', d);
+    el.mouthClip.setAttribute('d', d);
+    el.tongue.setAttribute('cy', (y0 + 11 + 65 * o - 12).toFixed(2));
+    el.tongue.setAttribute('ry', (4 + 16 * Math.min(1, o * 1.6)).toFixed(2));
+
+    requestAnimationFrame(frame);
+  }
+
+  // ---- events from the dashboard ----
+  function handle(evt) {
+    switch (evt.type) {
+      case 'state':
+        if (POSES[evt.state] && evt.state !== 'speaking') { stopSpeech(true); setState(evt.state, evt.led); }
+        break;
+      case 'speak': speak(evt); break;
+      case 'led':
+        ledOverride = hexToRgb(evt.color);
+        ledTarget = ledOverride || hexToRgb(STATE_LED[state]);
+        break;
+      case 'subtitles': document.body.classList.toggle('no-subtitles', evt.enabled === false); break;
+      case 'stop': stopSpeech(); break;
+    }
+  }
+
+  function showStatus(msg) {
+    el.status.textContent = msg;
+    el.status.classList.toggle('on', Boolean(msg));
+  }
+
+  function connect() {
+    const es = new EventSource(server + '/avatar/events');
+    es.onopen = () => showStatus('');
+    es.onerror = () => showStatus('Waiting for Diggy’s dashboard');
+    es.onmessage = (m) => { try { handle(JSON.parse(m.data)); } catch (e) { /* ignore malformed events */ } };
+  }
+
+  // ---- start-up: one tap unlocks browser audio ----
+  function wake() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new Ctx();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 1024;
+      analyser.connect(audioCtx.destination);
+      audioCtx.resume();
+    } catch (e) { audioCtx = null; }
+    $('gate').classList.add('gone');
+  }
+  $('gateBtn').addEventListener('click', wake);
+  if (params.get('nogate') === '1') $('gate').classList.add('gone');
+  else $('gateBtn').focus();
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'f') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.(); }
+    if (e.key === 'd') $('tray').classList.toggle('off');
+  });
+
+  if (demo) {
+    $('tray').classList.remove('off');
+    $('tray').addEventListener('click', (e) => {
+      const s = e.target.dataset && e.target.dataset.state;
+      if (s) handle({ type: 'state', state: s });
+    });
+    $('tray').addEventListener('submit', (e) => {
+      e.preventDefault();
+      handle({ type: 'speak', text: $('trayText').value });
+    });
+    $('trayLed').addEventListener('input', (e) => handle({ type: 'led', color: e.target.value }));
+  } else {
+    connect();
+  }
+
+  scheduleLife();
+  glanceLoop();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
